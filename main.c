@@ -15,7 +15,7 @@
 
 
 /* Function Declarations */
-void initialize_forest(int forest_rank,  int **local_forest, int local_forest_size);
+void initialize_forest(int forest_rank,  int **local_forest, int local_forest_size, int **simulated_forest);
 void simulate_forest(int **local_forest, MPI_Comm forest_comm, int local_forest_size, int **simulated_forest);
 int predict_if_tree_burn(int row, int col, int up, int down, int left, int right, int local_forest_size, int **local_forest, int **neighboring_states);
 void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int coordinates[]);
@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
     MPI_Cart_rank(forest_comm, coordinates, &forest_rank);
 
     for (i=0; i<ITERATIONS; i++) {
-        initialize_forest(forest_rank, local_forest, local_forest_size);
+        initialize_forest(forest_rank, local_forest, local_forest_size, simulated_forest);
         for (j=0; j<ITERATIONS; j++) {
             output_forest_to_file(simulated_forest, forest_comm, coordinates);
             simulate_forest(local_forest, forest_comm, local_forest_size, simulated_forest);
@@ -73,12 +73,13 @@ int main(int argc, char *argv[]) {
 
 
 
-void initialize_forest(int forest_rank,  int **local_forest, int local_forest_size) {
+void initialize_forest(int forest_rank,  int **local_forest, int local_forest_size, int **simulated_forest) {
     int i, j;
     srand(forest_rank+time(NULL));
     for (i=0; i<local_forest_size; i++) {
         for(j=0; j<local_forest_size; j++) {
             local_forest[i][j] = rand() % 4;
+            simulated_forest[i][j] = local_forest[i][j];
         }
     }
 }
