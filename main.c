@@ -50,11 +50,14 @@ int main(int argc, char *argv[]) {
     int coordinates[2];
     MPI_Cart_coords(forest_comm, forest_rank, 2, coordinates);
     MPI_Cart_rank(forest_comm, coordinates, &forest_rank);
-
+    // ITERATIONS: Assume how many forests there are that we need to simulate
     for (i=0; i<ITERATIONS; i++) {
+        // ITERATIONS: Assume how many times we need to simulate for each forest
         initialize_forest(forest_rank, local_forest, local_forest_size, simulated_forest);
         for (j=0; j<ITERATIONS; j++) {
+            // Output the current forest to the file
             output_forest_to_file(simulated_forest, forest_comm, coordinates);
+            // Simulate how the forest will be like
             simulate_forest(local_forest, forest_comm, local_forest_size, simulated_forest);
             MPI_Barrier(forest_comm);
         }
