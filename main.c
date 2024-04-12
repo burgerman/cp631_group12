@@ -19,6 +19,7 @@ void initialize_forest(int forest_rank,  int **local_forest, int local_forest_si
 void simulate_forest(int **local_forest, MPI_Comm forest_comm, int local_forest_size, int **simulated_forest);
 int predict_if_tree_burn(int row, int col, int up, int down, int left, int right, int local_forest_size, int **local_forest, int **neighboring_states);
 void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int coordinates[]);
+void update_local_forest(int local_forest_size, int **local_forest, int **simulated_forest);
 
 
 int main(int argc, char *argv[]) {
@@ -59,6 +60,8 @@ int main(int argc, char *argv[]) {
             output_forest_to_file(simulated_forest, forest_comm, coordinates);
             // Simulate how the forest will be like
             simulate_forest(local_forest, forest_comm, local_forest_size, simulated_forest);
+            // Update the local forest after the simulation
+            update_local_forest(local_forest_size, local_forest, simulated_forest);
             MPI_Barrier(forest_comm);
         }
         MPI_Barrier(forest_comm);
@@ -221,4 +224,13 @@ int predict_if_tree_burn(int row, int col, int up, int down, int left, int right
 
 void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int coordinates[]) {
 
+}
+
+void update_local_forest(int local_forest_size, int **local_forest, int **simulated_forest) {
+    int i, j;
+    for(i=0; i<local_forest_size; i++) {
+        for(j=0; j<local_forest_size; j++) {
+            local_forest[i][j] = simulated_forest[i][j];
+        }
+    }
 }
