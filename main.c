@@ -17,8 +17,8 @@
 /* Function Declarations */
 void initialize_forest(int forest_rank,  int **local_forest, int local_forest_size, int **simulated_forest);
 void simulate_forest(int **local_forest, MPI_Comm forest_comm, int local_forest_size, int **simulated_forest);
-int predict_if_tree_burn(int row, int col, int up, int down, int left, int right, int local_forest_size, int **local_forest, int **neighboring_states);
-void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int coordinates[]);
+int predict_if_tree_burn(int row, int col, int local_forest_size, int **local_forest, int **neighboring_states);
+void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int forest_rank, int coordinates[], int dim, int local_forest_size);
 void update_local_forest(int local_forest_size, int **local_forest, int **simulated_forest);
 
 
@@ -109,16 +109,20 @@ void simulate_forest(int **local_forest, MPI_Comm forest_comm, int local_forest_
         neighboring_states[i] = (int *)malloc(local_forest_size * sizeof(int));
     }
     if(up!= MPI_PROC_NULL && down != MPI_PROC_NULL) {
-        MPI_Sendrecv(local_forest[local_forest_size-1], local_forest_size, MPI_INT, down, 0, &neighboring_states[0], local_forest_size, MPI_INT, up, 0, forest_comm, MPI_STATUS_IGNORE);
-        MPI_Sendrecv(local_forest[0], local_forest_size, MPI_INT, up, 0, &neighboring_states[1], local_forest_size, MPI_INT, down, 0, forest_comm, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(local_forest[local_forest_size-1], local_forest_size, MPI_INT, down, 0, neighboring_states[0], local_forest_size, MPI_INT, up, 0, forest_comm, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(local_forest[0], local_forest_size, MPI_INT, up, 0, neighboring_states[1], local_forest_size, MPI_INT, down, 0, forest_comm, MPI_STATUS_IGNORE);
     }
     else {
         if (up == MPI_PROC_NULL) {
-            neighboring_states[0] = STATE_EMPTY;
-            MPI_Sendrecv(local_forest[local_forest_size-1], local_forest_size, MPI_INT, down, 0, &neighboring_states[1], local_forest_size, MPI_INT, down, 0, forest_comm, MPI_STATUS_IGNORE);
+            for(j=0; j<local_forest_size; j++) {
+                neighboring_states[0][j] = STATE_EMPTY;
+            }
+            MPI_Sendrecv(local_forest[local_forest_size-1], local_forest_size, MPI_INT, down, 0, neighboring_states[1], local_forest_size, MPI_INT, down, 0, forest_comm, MPI_STATUS_IGNORE);
         } else if (down == MPI_PROC_NULL) {
-            neighboring_states[1] = STATE_EMPTY;
-            MPI_Sendrecv(local_forest[0], local_forest_size, MPI_INT, up, 0, &neighboring_states[0], local_forest_size, MPI_INT, up, 0, forest_comm, MPI_STATUS_IGNORE);
+            for(j=0; j<local_forest_size; j++) {
+                neighboring_states[1][j] = STATE_EMPTY;
+            }
+            MPI_Sendrecv(local_forest[0], local_forest_size, MPI_INT, up, 0, neighboring_states[0], local_forest_size, MPI_INT, up, 0, forest_comm, MPI_STATUS_IGNORE);
         }
     }
 
@@ -129,36 +133,33 @@ void simulate_forest(int **local_forest, MPI_Comm forest_comm, int local_forest_
     }
 
     if (left!= MPI_PROC_NULL && right != MPI_PROC_NULL) {
-        MPI_Sendrecv(right_col, local_forest_size, MPI_INT, right, 0, &neighboring_states[2], local_forest_size, MPI_INT, left, 0, forest_comm, MPI_STATUS_IGNORE);
-        MPI_Sendrecv(left_col, local_forest_size, MPI_INT, left, 0, &neighboring_states[3], local_forest_size, MPI_INT, right, 0, forest_comm, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(right_col, local_forest_size, MPI_INT, right, 0, neighboring_states[2], local_forest_size, MPI_INT, left, 0, forest_comm, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(left_col, local_forest_size, MPI_INT, left, 0, neighboring_states[3], local_forest_size, MPI_INT, right, 0, forest_comm, MPI_STATUS_IGNORE);
     }
     else {
         if(left == MPI_PROC_NULL) {
-            neighboring_states[2] = STATE_EMPTY;
-            MPI_Sendrecv(right_col, local_forest_size, MPI_INT, right, 0, &neighboring_states[3], local_forest_size, MPI_INT, right, 0, forest_comm, MPI_STATUS_IGNORE);
+            for(j=0; j<local_forest_size; j++) {
+                neighboring_states[2][j] = STATE_EMPTY;
+            }
+            MPI_Sendrecv(right_col, local_forest_size, MPI_INT, right, 0, neighboring_states[3], local_forest_size, MPI_INT, right, 0, forest_comm, MPI_STATUS_IGNORE);
         } else if (right == MPI_PROC_NULL) {
-            neighboring_states[3] = STATE_EMPTY;
-            MPI_Sendrecv(left_col, local_forest_size, MPI_INT, left, 0, &neighboring_states[2], local_forest_size, MPI_INT, left, 0, forest_comm, MPI_STATUS_IGNORE);
+            for(j=0; j<local_forest_size; j++) {
+                neighboring_states[3][j] = STATE_EMPTY;
+            }
+            MPI_Sendrecv(left_col, local_forest_size, MPI_INT, left, 0, neighboring_states[2], local_forest_size, MPI_INT, left, 0, forest_comm, MPI_STATUS_IGNORE);
         }
     }
-    #pragma omp parallel shared (local_forest, simulated_forest, neighboring_states, local_forest_size, up, down, left, right)
-    {
-        #pragma omp single nowait
-        {
-            for (i = 0; i < local_forest_size; i++) {
-                for (j = 0; j < local_forest_size; j++) {
-                    #pragma omp task firstprivate(i, j)
-                    {
-                        if (local_forest[i][j] == STATE_BURNING) {
-                            simulated_forest[i][j] = STATE_BURNT;
-                        } else if ((local_forest[i][j] == STATE_EMPTY || local_forest[i][j] == STATE_BURNT)) {
-                            simulated_forest[i][j] = local_forest[i][j];
-                        } else {
-                            simulated_forest[i][j] = predict_if_tree_burn(i, j, up, down, left, right, local_forest_size,
-                                                                          local_forest, neighboring_states);
-                        }
-                    }
-                }
+
+    #pragma omp parallel for shared(local_forest, simulated_forest, neighboring_states, local_forest_size, up, down, left, right) collapse(2)
+    for (i = 0; i < local_forest_size; i++) {
+        for (j = 0; j < local_forest_size; j++) {
+            if (local_forest[i][j] == STATE_BURNING) {
+                simulated_forest[i][j] = STATE_BURNT;
+            } else if ((local_forest[i][j] == STATE_EMPTY || local_forest[i][j] == STATE_BURNT)) {
+                simulated_forest[i][j] = local_forest[i][j];
+            } else {
+                simulated_forest[i][j] = predict_if_tree_burn(i, j, local_forest_size,
+                                                              local_forest, neighboring_states);
             }
         }
     }
@@ -171,46 +172,31 @@ void simulate_forest(int **local_forest, MPI_Comm forest_comm, int local_forest_
 
 
 
-int predict_if_tree_burn(int row, int col, int up, int down, int left, int right, int local_forest_size, int **local_forest, int **neighboring_states) {
+int predict_if_tree_burn(int row, int col, int local_forest_size, int **local_forest, int **neighboring_states) {
     int up_entry, down_entry, left_entry, right_entry;
-    if(up != MPI_PROC_NULL) {
-        if(row == 0) {
-            up_entry = neighboring_states[0][col];
-        } else {
-            up_entry = local_forest[row-1][col];
-        }
+
+    if(row == 0) {
+        up_entry = neighboring_states[0][col];
     } else {
-        up_entry = STATE_EMPTY;
+        up_entry = local_forest[row-1][col];
     }
 
-    if(down != MPI_PROC_NULL) {
-        if(row == local_forest_size-1) {
-            down_entry = neighboring_states[1][col];
-        } else {
-            down_entry = local_forest[row+1][col];
-        }
+    if(row == local_forest_size-1) {
+        down_entry = neighboring_states[1][col];
     } else {
-        down_entry = STATE_EMPTY;
+        down_entry = local_forest[row+1][col];
     }
 
-    if(left != MPI_PROC_NULL) {
-        if(col == 0) {
-            left_entry = neighboring_states[2][row];
-        } else {
-            left_entry = local_forest[row][col-1];
-        }
+    if(col == 0) {
+        left_entry = neighboring_states[2][row];
     } else {
-        left_entry = STATE_EMPTY;
+        left_entry = local_forest[row][col-1];
     }
 
-    if(right != MPI_PROC_NULL) {
-        if(col == local_forest_size -1) {
-            right_entry = neighboring_states[3][row];
-        } else {
-            right_entry = local_forest[row][col+1];
-        }
+    if(col == local_forest_size -1) {
+        right_entry = neighboring_states[3][row];
     } else {
-        right_entry = STATE_EMPTY;
+        right_entry = local_forest[row][col+1];
     }
 
     if(up_entry == STATE_BURNING || down_entry == STATE_BURNING || left_entry == STATE_BURNING || right_entry == STATE_BURNING) {
