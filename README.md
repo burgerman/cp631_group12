@@ -6,7 +6,8 @@
 
 
 # Steps to visualize the Forest.
-# Login to the course server and run python script "bokeh serve --show visualize.py"
+# Login to the course server and make sure you have bokeh and numoy libraries with the required versions(check requiremetns.txt file for information)
+# Run python script "bokeh serve --show visualize.py"
 # To Visualize the forest on the web browser you need to open your local machine's terminal and setup and ssh tunnel.
 # Tunnel cmd: "ssh -L 5006:localhost:5006 username@mcs1.wlu.ca"
 # Open your local web browser and hit this url: "http://localhost:5006/visb"
