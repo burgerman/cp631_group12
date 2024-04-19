@@ -14,5 +14,5 @@
 ##### Run python script "bokeh serve --show visualize.py"
 ##### To Visualize the forest on the web browser you need to open your local machine's terminal and setup and ssh tunnel.
 ##### Tunnel cmd: "ssh -L 5006:localhost:5006 username@mcs1.wlu.ca"
-##### Open your local web browser and hit this url: "http://localhost:5006/visb"
+##### Open your local web browser and hit this url: "http://localhost:5006/visualize"
 ##### You will be able to visualise all the iterations of the Forest.
