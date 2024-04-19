@@ -3,7 +3,7 @@
 ##### scp /local_path/main.cpp usrname@mcs1.wlu.ca:/home/usrname/dir
 ##### scp /local_path/dir_init.py usrname@mcs1.wlu.ca:/home/usrname/dir
 ##### scp /local_path/visualize.py usrname@mcs1.wlu.ca:/home/usrname/dir
-##### Install the core lib of visualization: pip install bokeh
+##### Install the core lib of visualization: pip install bokeh numpy
 ##### Make sure to execute dir_init.py in the same location as the main.cpp before the execution of the main program
 ##### step2. mpicxx -fopenmp -O2 /home/usrname/dir/main.cpp -o /home/username/dir/test.out
 ##### step3. OMP_NUM_THREADS=3 mpirun -np 9 /home/usrname/dir/test.out
