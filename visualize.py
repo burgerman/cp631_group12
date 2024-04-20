@@ -9,7 +9,7 @@ import os
 directory_path = 'output'
 
 # we are loading data from files
-data_files = sorted([f for f in os.listdir(directory_path) if f.startswith('forest_iteration')])
+data_files = sorted([f for f in os.listdir(directory_path) if f.startswith('forest_')])
 
 # Preparing a source to hold data, which can be updated
 source = ColumnDataSource(data={'image': [np.zeros((10, 10))], 'x': [0], 'y': [0], 'dw': [10], 'dh': [10]})
