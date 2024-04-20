@@ -18,7 +18,7 @@ void simulate_forest(int **local_forest, MPI_Comm forest_comm, int local_forest_
 int predict_if_tree_burn(int row, int col, int local_forest_size, int **local_forest, int **neighboring_states);
 void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int forest_number, int iteration, int local_forest_size, int coordinates[]);
 void update_local_forest(int local_forest_size, int **local_forest, int **simulated_forest);
-void concatenate_forest_files(int forest_number, int iteration, int q, int p, MPI_Comm forest_comm);
+void concatenate_forest_files(int forest_number, int iteration, int q, int p, MPI_Comm forest_comm, int local_forest_size);
 
 int main(int argc, char *argv[]) {
     int i, j, k, my_rank, forest_rank, p, q;
@@ -73,20 +73,15 @@ int main(int argc, char *argv[]) {
             MPI_Barrier(forest_comm);
         }
         output_forest_to_file(simulated_forest, forest_comm, i, ITERATIONS, local_forest_size, coordinates);
+        for (j = 0; j <= ITERATIONS; j++) {
+            concatenate_forest_files(i, j, q, p, forest_comm, local_forest_size);
+        }
         for(k=0; k<local_forest_size; k++) {
             free(local_forest[k]);
             free(simulated_forest[k]);
         }
         free(local_forest);
         free(simulated_forest);
-    }
-
-
-    for (i = 0; i<ITERATIONS; i++)
-    {
-        for (j = 0; j <= ITERATIONS; j++) {
-            concatenate_forest_files(i, j, q, p, forest_comm);
-        }
     }
     MPI_Finalize();
     return 0;
@@ -250,13 +245,12 @@ void update_local_forest(int local_forest_size, int **local_forest, int **simula
     }
 }
 
-void concatenate_forest_files(int forest_number, int iteration, int q, int p, MPI_Comm forest_comm) {
+void concatenate_forest_files(int forest_number, int iteration, int q, int p, MPI_Comm forest_comm, int local_forest_size) {
     int my_rank, forest_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_rank(forest_comm, &forest_rank);
 
-    int local_forest_size = FOREST_SIZE / q;
-    int total_forest_size = FOREST_SIZE;
+    int total_forest_size = local_forest_size * q;
 
     // Buffer to store the complete forest
     int *complete_forest = NULL;
