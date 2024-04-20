@@ -16,9 +16,9 @@
 void initialize_forest(int forest_rank,  int **local_forest, int local_forest_size, int **simulated_forest);
 void simulate_forest(int **local_forest, MPI_Comm forest_comm, int local_forest_size, int **simulated_forest);
 int predict_if_tree_burn(int row, int col, int local_forest_size, int **local_forest, int **neighboring_states);
-void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int coordinates[], int iteration,int local_forest_size);
+void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int forest_number, int iteration, int local_forest_size, int coordinates[]);
 void update_local_forest(int local_forest_size, int **local_forest, int **simulated_forest);
-void concatenate_forest_files(int iteration, int q, int p, MPI_Comm forest_comm);
+void concatenate_forest_files(int forest_number, int iteration, int q, int p, MPI_Comm forest_comm); 
 
 int main(int argc, char *argv[]) {
     int i, j, my_rank, forest_rank, p, q;
@@ -49,32 +49,37 @@ int main(int argc, char *argv[]) {
     MPI_Cart_coords(forest_comm, forest_rank, 2, coordinates);
     MPI_Cart_rank(forest_comm, coordinates, &forest_rank);
 
-    // Assume how many forests there are that we need to simulate
-    initialize_forest(forest_rank, local_forest, local_forest_size, simulated_forest);
-    // Assume how many times we need to simulate for each forest
-    for (j=0; j<ITERATIONS; j++) {
-        // Output the current forest to the file
-        output_forest_to_file(simulated_forest, forest_comm, coordinates,j,local_forest_size);
-        // Simulate how the forest will be like
-        start_time=MPI_Wtime();
-        simulate_forest(local_forest, forest_comm, local_forest_size, simulated_forest);
-        MPI_Barrier(forest_comm);
-        // Update the local forest after the simulation
-        update_local_forest(local_forest_size, local_forest, simulated_forest);
-        end_time=MPI_Wtime();
-        time_cost = end_time-start_time;
-        printf("Time cost of simulation %d is : %f seconds\n", j, time_cost);
-        MPI_Barrier(forest_comm);
+    for(i=0; i<ITERATIONS; i++){
+        // Assume how many forests there are that we need to simulate
+        initialize_forest(forest_rank, local_forest, local_forest_size, simulated_forest);
+        // Assume how many times we need to simulate for each forest
+        
+        for (j=0; j<ITERATIONS; j++) {
+            // Output the current forest to the file
+            output_forest_to_file(simulated_forest, forest_comm, i, j, local_forest_size, coordinates);
+            // Simulate how the forest will be like
+            start_time=MPI_Wtime();
+            simulate_forest(local_forest, forest_comm, local_forest_size, simulated_forest);
+            MPI_Barrier(forest_comm);
+            // Update the local forest after the simulation
+            update_local_forest(local_forest_size, local_forest, simulated_forest);
+            end_time=MPI_Wtime();
+            time_cost = end_time-start_time;
+            printf("Time cost of simulation %d is : %f seconds\n", j, time_cost);
+            MPI_Barrier(forest_comm);
+        }
+        output_forest_to_file(simulated_forest, forest_comm, i, ITERATIONS, local_forest_size, coordinates);
     }
-    output_forest_to_file(simulated_forest, forest_comm, coordinates,ITERATIONS,local_forest_size);
-
     for(i=0; i<local_forest_size; i++) {
         free(local_forest[i]);
         free(simulated_forest[i]);
     }
 
-    for (i = 0; i <= ITERATIONS; i++) {
-        concatenate_forest_files(i, q, p, forest_comm);
+    for (i = 0; i<ITERATIONS; i++)
+    {
+        for (j = 0; j <= ITERATIONS; j++) {
+        concatenate_forest_files(i, j, q, p, forest_comm);
+        }
     }
 
     free(local_forest);
@@ -209,12 +214,12 @@ int predict_if_tree_burn(int row, int col, int local_forest_size, int **local_fo
     }
 }
 
-void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int coordinates[], int iteration,int local_forest_size) {
+void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int forest_number, int iteration, int local_forest_size, int coordinates[]) {
     int forest_rank;
     MPI_Comm_rank(forest_comm, &forest_rank);
-
-    char filename[50];
-    snprintf(filename, sizeof(filename), "data/forest_iteration_%d_process_%d_coords_%d_%d.txt", iteration, forest_rank, coordinates[0], coordinates[1]);
+    
+    char filename[100];
+    snprintf(filename, sizeof(filename), "data/forest_%d_iteration_%d_process_%d_coords_%d_%d.txt", forest_number, iteration, forest_rank, coordinates[0], coordinates[1]);
 
     FILE *file = fopen(filename, "w");
     if (file == NULL) {
@@ -232,7 +237,6 @@ void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int coo
 
     fclose(file);
 }
-
 void update_local_forest(int local_forest_size, int **local_forest, int **simulated_forest) {
     int i, j;
     for(i=0; i<local_forest_size; i++) {
@@ -242,7 +246,7 @@ void update_local_forest(int local_forest_size, int **local_forest, int **simula
     }
 }
 
-void concatenate_forest_files(int iteration, int q, int p, MPI_Comm forest_comm) {
+void concatenate_forest_files(int forest_number, int iteration, int q, int p, MPI_Comm forest_comm) {
     int my_rank, forest_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_rank(forest_comm, &forest_rank);
@@ -268,12 +272,12 @@ void concatenate_forest_files(int iteration, int q, int p, MPI_Comm forest_comm)
             proc_coords[0] = proc / q;
             proc_coords[1] = proc % q;
 
-            char process_filename[50];
-            snprintf(process_filename, sizeof(process_filename), "data/forest_iteration_%d_process_%d_coords_%d_%d.txt", iteration, proc, proc_coords[0], proc_coords[1]);
+            char process_filename[100];
+            snprintf(process_filename, sizeof(process_filename), "data/forest_%d_iteration_%d_process_%d_coords_%d_%d.txt", forest_number, iteration, proc, proc_coords[0], proc_coords[1]);
 
             FILE *input_file = fopen(process_filename, "r");
             if (input_file == NULL) {
-                printf("Error opening input file.\n");
+                printf("Error opening input file %s.\n",process_filename);
                 free(complete_forest);
                 return;
             }
@@ -294,7 +298,7 @@ void concatenate_forest_files(int iteration, int q, int p, MPI_Comm forest_comm)
 
         // Write complete forest to file
         char filename[50];
-        snprintf(filename, sizeof(filename), "output/forest_iteration_%d.txt", iteration);
+        snprintf(filename, sizeof(filename), "output/forest_%d_iteration_%d.txt", forest_number, iteration);
         FILE *output_file = fopen(filename, "w");
         if (output_file == NULL) {
             printf("Error opening output file.\n");
