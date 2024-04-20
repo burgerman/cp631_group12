@@ -5,8 +5,8 @@
 #include "omp.h"
 #include "mpi.h"
 
-#define FOREST_SIZE 128
-#define ITERATIONS 5
+#define FOREST_SIZE 16
+#define ITERATIONS 4
 #define STATE_EMPTY 0
 #define STATE_TREE 1
 #define STATE_BURNING 2
@@ -18,26 +18,18 @@ void simulate_forest(int **local_forest, MPI_Comm forest_comm, int local_forest_
 int predict_if_tree_burn(int row, int col, int local_forest_size, int **local_forest, int **neighboring_states);
 void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int forest_number, int iteration, int local_forest_size, int coordinates[]);
 void update_local_forest(int local_forest_size, int **local_forest, int **simulated_forest);
-void concatenate_forest_files(int forest_number, int iteration, int q, int p, MPI_Comm forest_comm); 
+void concatenate_forest_files(int forest_number, int iteration, int q, int p, MPI_Comm forest_comm);
 
 int main(int argc, char *argv[]) {
-    int i, j, my_rank, forest_rank, p, q;
+    int i, j, k, my_rank, forest_rank, p, q;
     double start_time, end_time, time_cost;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &p);
     q = (int) sqrt((double) p);
-    int local_forest_size = FOREST_SIZE/q;
-    int **local_forest = (int **)malloc(local_forest_size * sizeof(int *));
-    for(i=0; i<local_forest_size; i++) {
-        local_forest[i] = (int *)malloc(local_forest_size * sizeof(int));
-    }
-
-    int **simulated_forest = (int **)malloc(local_forest_size * sizeof(int *));
-    for(i=0; i<local_forest_size; i++) {
-        simulated_forest[i] = (int *)malloc(local_forest_size * sizeof(int));
-    }
-
+    int local_forest_size;
+    int **local_forest;
+    int **simulated_forest;
     int dimensions[2];
     dimensions[0] = dimensions[1] = q;
     int periods[2];
@@ -50,10 +42,22 @@ int main(int argc, char *argv[]) {
     MPI_Cart_rank(forest_comm, coordinates, &forest_rank);
 
     for(i=0; i<ITERATIONS; i++){
+        local_forest_size = FOREST_SIZE*(i+1)/q;
+        printf("local forest size: %d\n", local_forest_size);
+        local_forest = (int **)malloc(local_forest_size * sizeof(int *));
+        for(k=0; k<local_forest_size; k++) {
+            local_forest[k] = (int *)malloc(local_forest_size * sizeof(int));
+        }
+
+        simulated_forest = (int **)malloc(local_forest_size * sizeof(int *));
+        for(k=0; k<local_forest_size; k++) {
+            simulated_forest[k] = (int *)malloc(local_forest_size * sizeof(int));
+        }
+
         // Assume how many forests there are that we need to simulate
         initialize_forest(forest_rank, local_forest, local_forest_size, simulated_forest);
         // Assume how many times we need to simulate for each forest
-        
+
         for (j=0; j<ITERATIONS; j++) {
             // Output the current forest to the file
             output_forest_to_file(simulated_forest, forest_comm, i, j, local_forest_size, coordinates);
@@ -69,21 +73,21 @@ int main(int argc, char *argv[]) {
             MPI_Barrier(forest_comm);
         }
         output_forest_to_file(simulated_forest, forest_comm, i, ITERATIONS, local_forest_size, coordinates);
+        for(k=0; k<local_forest_size; k++) {
+            free(local_forest[k]);
+            free(simulated_forest[k]);
+        }
+        free(local_forest);
+        free(simulated_forest);
     }
-    for(i=0; i<local_forest_size; i++) {
-        free(local_forest[i]);
-        free(simulated_forest[i]);
-    }
+
 
     for (i = 0; i<ITERATIONS; i++)
     {
         for (j = 0; j <= ITERATIONS; j++) {
-        concatenate_forest_files(i, j, q, p, forest_comm);
+            concatenate_forest_files(i, j, q, p, forest_comm);
         }
     }
-
-    free(local_forest);
-    free(simulated_forest);
     MPI_Finalize();
     return 0;
 }
@@ -157,7 +161,7 @@ void simulate_forest(int **local_forest, MPI_Comm forest_comm, int local_forest_
         }
     }
 
-    #pragma omp parallel for shared (local_forest, simulated_forest, neighboring_states, local_forest_size, up, down, left, right) collapse(2)
+#pragma omp parallel for shared (local_forest, simulated_forest, neighboring_states, local_forest_size, up, down, left, right) collapse(2)
     for (i = 0; i < local_forest_size; i++) {
         for (j = 0; j < local_forest_size; j++) {
 
@@ -217,7 +221,7 @@ int predict_if_tree_burn(int row, int col, int local_forest_size, int **local_fo
 void output_forest_to_file(int **simulated_forest, MPI_Comm forest_comm, int forest_number, int iteration, int local_forest_size, int coordinates[]) {
     int forest_rank;
     MPI_Comm_rank(forest_comm, &forest_rank);
-    
+
     char filename[100];
     snprintf(filename, sizeof(filename), "data/forest_%d_iteration_%d_process_%d_coords_%d_%d.txt", forest_number, iteration, forest_rank, coordinates[0], coordinates[1]);
 
